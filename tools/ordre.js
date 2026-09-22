@@ -77,6 +77,22 @@
     return '<head>'+base+'</head>'+html;
   }
 
+  // Devine l'adresse réelle de la page à partir du source collé (canonical, og:url,
+  // <base>, sinon l'origine du premier asset absolu). Sert à résoudre les CSS relatives.
+  function attr(tag,name){const m=tag.match(new RegExp(name+'\\s*=\\s*["\\\']([^"\\\']+)','i'));return m?m[1]:null;}
+  function detectBase(html){
+    const bt=html.match(/<base\b[^>]*>/i);
+    if(bt){const h=attr(bt[0],'href'); if(h&&/^https?:/i.test(h))return h;}
+    for(const t of (html.match(/<link\b[^>]*>/gi)||[])){
+      if(/rel\s*=\s*["\']?canonical/i.test(t)){const h=attr(t,'href'); if(h&&/^https?:/i.test(h))return h;}
+    }
+    for(const t of (html.match(/<meta\b[^>]*>/gi)||[])){
+      if(/property\s*=\s*["\']?og:url/i.test(t)){const c=attr(t,'content'); if(c&&/^https?:/i.test(c))return c;}
+    }
+    const a=html.match(/(?:href|src)\s*=\s*["\'](https?:\/\/[^"\'\/]+)/i);
+    return a?a[1]:'';
+  }
+
   const HOWTO = `
     <p>Colle le HTML d'une page pour visualiser, superposés, soit l'ordre du DOM (l'ordre de lecture par défaut), soit l'ordre de tabulation au clavier. Le HTML collé n'est jamais exécuté (iframe sans scripts).</p>
     <h3>Deux ordres à comparer</h3>
@@ -104,8 +120,8 @@
         <label class="lb" for="ord-input">Coller le HTML à visualiser</label>
         <textarea class="ord-ta" id="ord-input" spellcheck="false"></textarea>
         <label class="lb" for="ord-url" style="margin:12px 0 6px">URL de la page (facultatif) — pour charger ses styles et images</label>
-        <input type="url" id="ord-url" class="field" placeholder="https://www.exemple.com/page" spellcheck="false">
-        <p class="hint">Sans URL, seule la structure s'affiche : les styles à chemin relatif ne se chargent pas, et le contenu généré par JavaScript n'apparaît pas. Pour une vraie page complète et fidèle, préfère le bookmarklet plus bas, directement sur le site.</p>
+        <input type="url" id="ord-url" class="field" placeholder="Laisse vide : détectée automatiquement dans le source" spellcheck="false">
+        <p class="hint">Si tu laisses ce champ vide, l'outil tente de deviner l'adresse dans le source (balise canonical, og:url…) pour charger les feuilles de style externes. Le contenu généré par JavaScript n'apparaît pas ici ; pour une page complète et fidèle, préfère le bookmarklet plus bas, directement sur le site.</p>
         <div class="ord-bar">
           <button class="btn" id="ord-run" type="button">Visualiser</button>
           <button class="btn ghost" id="ord-sample" type="button">Charger un exemple</button>
@@ -155,13 +171,19 @@
         const html=q('#ord-input').value;
         if(!html.trim()){q('#ord-status').textContent='Colle du HTML puis clique sur « Visualiser ».';return;}
         q('#ord-stage').hidden=false;
-        frame.srcdoc = withBase(html, q('#ord-url').value.trim());
+        frame.srcdoc = withBase(html, currentUrl(html));
+      }
+      // URL à utiliser : celle saisie, sinon détectée dans le source (et affichée)
+      function currentUrl(html){
+        let u=q('#ord-url').value.trim();
+        if(!u){ u=detectBase(html); if(u){ q('#ord-url').value=u; q('#ord-status').textContent='Origine détectée : '+u; } }
+        return u;
       }
       function openInTab(){
         const html=q('#ord-input').value;
         if(!html.trim()){q('#ord-status').textContent='Colle du HTML avant d’ouvrir l’aperçu.';return;}
         const stripped=html.replace(/<script[\s\S]*?<\/script>/gi,'');
-        const pageUrl=q('#ord-url').value.trim();
+        const pageUrl=currentUrl(html);
         const base=pageUrl?'<base href="'+pageUrl.replace(/"/g,'&quot;')+'">':'';
         const doc='<!doctype html><html lang="fr"><head><meta charset="utf-8">'+base
           +'<title>Ordre & focus — aperçu Neodyr</title></head><body>'
