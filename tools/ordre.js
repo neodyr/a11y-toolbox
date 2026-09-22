@@ -14,8 +14,9 @@
   .ord-ta:focus-visible{border-color:var(--signal)}
   .ord-bar{display:flex;gap:10px;align-items:center;margin:12px 0;flex-wrap:wrap}
   .ord-stage{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;margin-top:8px}
+  .ord-stage:fullscreen{overflow:auto;border-radius:0;border:0}
   .ord-frame{display:block;width:100%;border:0;background:#fff}
-  .ord-overlay{position:absolute;inset:0;pointer-events:none}
+  .ord-overlay{position:absolute;top:0;left:0;width:100%;pointer-events:none}
   .ord-arrows{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
   .ord-arrows line{stroke:var(--signal-ink);stroke-width:2;opacity:.55}
   .ord-arrows marker path{fill:var(--signal-ink)}
@@ -95,6 +96,7 @@
         <div class="ord-bar">
           <button class="btn" id="ord-run" type="button">Visualiser</button>
           <button class="btn ghost" id="ord-sample" type="button">Charger un exemple</button>
+          <button class="btn ghost" id="ord-full" type="button">Plein écran</button>
           <button class="btn ghost" id="ord-tab" type="button">Ouvrir dans un onglet</button>
           <div class="seg" role="group" aria-label="Ordre à afficher" style="margin-left:auto">
             <button type="button" data-mode="tab" aria-pressed="true">Tabulation</button>
@@ -125,6 +127,7 @@
       q('#ord-sample').addEventListener('click',()=>{q('#ord-input').value=SAMPLE;visualise();});
       q('#ord-run').addEventListener('click',visualise);
       q('#ord-tab').addEventListener('click',openInTab);
+      q('#ord-full').addEventListener('click',goFull);
       q('.ord-bar .seg').addEventListener('click',e=>{
         const b=e.target.closest('button');if(!b)return;
         mode=b.dataset.mode;
@@ -158,7 +161,11 @@
       }
       function resize(){
         if(!frame.isConnected) return;
-        try{const d=frame.contentDocument;frame.style.height=Math.max(120,d.documentElement.scrollHeight)+'px';}catch(e){}
+        try{
+          const d=frame.contentDocument, h=Math.max(120,d.documentElement.scrollHeight);
+          frame.style.height=h+'px';
+          const ov=q('#ord-overlay'); if(ov) ov.style.height=h+'px'; // l'overlay suit la hauteur pour rester aligné
+        }catch(e){}
       }
       function focusables(d){
         const sel='a[href],area[href],button,input:not([type="hidden"]),select,textarea,iframe,[tabindex],[contenteditable="true"],audio[controls],video[controls]';
@@ -203,12 +210,26 @@
         q('#ord-status').textContent='Aperçu à jour.';
       }
 
+      function goFull(){
+        const stage=q('#ord-stage');
+        if(stage.hidden){ visualise(); q('#ord-status').textContent='Aperçu généré — reclique sur « Plein écran ».'; return; }
+        if(document.fullscreenElement){ document.exitFullscreen(); }
+        else if(stage.requestFullscreen){ stage.requestFullscreen().catch(()=>{ q('#ord-status').textContent='Plein écran indisponible dans ce contexte.'; }); }
+        else { q('#ord-status').textContent='Plein écran non géré par ce navigateur — utilise « Ouvrir dans un onglet ».'; }
+      }
+      function onFs(){ setTimeout(()=>{ resize(); overlay(); },80); } // dimensions changées : on recalcule
+
       let rt;
       const onResize=()=>{clearTimeout(rt);rt=setTimeout(()=>{resize();overlay();},150);};
       window.addEventListener('resize',onResize);
+      document.addEventListener('fullscreenchange',onFs);
 
       // nettoyage à la navigation vers un autre outil
-      return ()=>window.removeEventListener('resize',onResize);
+      return ()=>{
+        window.removeEventListener('resize',onResize);
+        document.removeEventListener('fullscreenchange',onFs);
+        if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      };
     }
   });
 })();
