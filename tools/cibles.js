@@ -72,15 +72,16 @@
       </div>`;
 
       const q=s=>root.querySelector(s);
-      const box=q('#ct-box'), inW=q('#ct-w'), inH=q('#ct-h');
-      let w=40,h=40, fromObserver=false;
+      const box=q('#ct-box'), inW=q('#ct-w'), inH=q('#ct-h'), verdictsEl=q('#ct-verdicts');
+      let w=40,h=40;
 
       function verdicts(){
+        if(!verdictsEl || !verdictsEl.isConnected) return; // outil quitté : ne rien faire
         const rows=[
           ['2.5.8', '24', 'Minimum (AA)', w>=24&&h>=24],
           ['2.5.5', '44', 'Optimal (AAA)', w>=44&&h>=44]
         ];
-        q('#ct-verdicts').innerHTML=rows.map(([c,t,lbl,ok])=>
+        verdictsEl.innerHTML=rows.map(([c,t,lbl,ok])=>
           `<div class="ct-v ${ok?'ok':'no'}"><span class="bul" aria-hidden="true"></span><span class="txt"><b>WCAG ${c}</b> · ${lbl} · ${t}×${t} px</span><span class="st">${ok?'Conforme':'Trop petit'}</span></div>`
         ).join('');
       }
@@ -95,8 +96,10 @@
       function clampNum(v){v=parseInt(v,10);if(isNaN(v))v=1;return Math.min(400,Math.max(1,v));}
 
       // redimensionnement à la souris -> met à jour les champs
+      let ro=null;
       if('ResizeObserver' in window){
-        const ro=new ResizeObserver(entries=>{
+        ro=new ResizeObserver(entries=>{
+          if(!box.isConnected) return; // outil quitté
           for(const e of entries){
             const nw=Math.round(e.contentRect.width), nh=Math.round(e.contentRect.height);
             if(nw!==Math.round(w)||nh!==Math.round(h)){
@@ -110,6 +113,9 @@
         ro.observe(box);
       }
       applySize();
+
+      // nettoyage à la navigation vers un autre outil
+      return ()=>{ if(ro) ro.disconnect(); };
     }
   });
 })();

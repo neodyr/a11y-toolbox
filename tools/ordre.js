@@ -111,6 +111,7 @@
         frame.srcdoc = html;
       }
       function resize(){
+        if(!frame.isConnected) return;
         try{const d=frame.contentDocument;frame.style.height=Math.max(120,d.documentElement.scrollHeight)+'px';}catch(e){}
       }
       function focusables(d){
@@ -122,7 +123,9 @@
         return [...d.querySelectorAll(sel)].filter(e=>{const r=e.getBoundingClientRect();return r.width>0 && r.height>0;});
       }
       function overlay(){
-        const ov=q('#ord-overlay');ov.innerHTML='';
+        const ov=q('#ord-overlay');
+        if(!ov || !ov.isConnected) return; // outil quitté
+        ov.innerHTML='';
         let d;try{d=frame.contentDocument;}catch(e){return;}
         if(!d||!d.body)return;
         let els;

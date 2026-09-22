@@ -75,6 +75,7 @@
       }
 
       function render(img){
+        if(!grid.isConnected) return; // outil quitté pendant le chargement
         const MAX=460;
         const scale=Math.min(1, MAX/Math.max(img.width,img.height));
         const w=Math.max(1,Math.round(img.width*scale)), h=Math.max(1,Math.round(img.height*scale));
