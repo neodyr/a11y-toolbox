@@ -40,6 +40,32 @@
   // Bookmarklet : superpose la numérotation de l'ordre de tabulation sur la page courante.
   const BOOKMARKLET = "javascript:(function(){var q='a[href],area[href],button,input:not([type=hidden]),select,textarea,iframe,[tabindex],[contenteditable=true]';var a=[].slice.call(document.querySelectorAll(q)).filter(function(e){var r=e.getBoundingClientRect();return !e.disabled&&e.tabIndex>=0&&r.width>0&&r.height>0});function rk(e){return e.tabIndex>0?e.tabIndex:1e9}a.sort(function(x,y){return rk(x)-rk(y)});a.forEach(function(e,i){var r=e.getBoundingClientRect();var b=document.createElement('div');b.textContent=i+1;b.style.cssText='position:absolute;z-index:2147483647;background:#056a4a;color:#fff;font:700 11px sans-serif;min-width:16px;height:16px;padding:0 3px;border-radius:8px;box-shadow:0 0 0 2px #fff;transform:translate(-45%,-45%)';b.style.left=(r.left+scrollX)+'px';b.style.top=(r.top+scrollY)+'px';document.body.appendChild(b)})})()";
 
+  // Script injecté dans le nouvel onglet : recalcule l'ordre et dessine numéros + flèches.
+  const OVERLAY_SCRIPT = `(function(){
+    var MODE='__MODE__';
+    var foc='a[href],area[href],button,input:not([type=hidden]),select,textarea,iframe,[tabindex],[contenteditable=true],audio[controls],video[controls]';
+    var read='h1,h2,h3,h4,h5,h6,p,li,a[href],button,input:not([type=hidden]),select,textarea,img,figure,blockquote,td,th';
+    function vis(e){var r=e.getBoundingClientRect();return r.width>0&&r.height>0;}
+    var els;
+    if(MODE==='tab'){
+      els=[].slice.call(document.querySelectorAll(foc)).filter(function(e){return !e.disabled&&e.tabIndex>=0&&vis(e);});
+      els=els.map(function(e,i){return{e:e,i:i};}).sort(function(a,b){var ra=a.e.tabIndex>0?a.e.tabIndex:1e9,rb=b.e.tabIndex>0?b.e.tabIndex:1e9;return ra-rb||a.i-b.i;}).map(function(o){return o.e;});
+    }else{
+      els=[].slice.call(document.querySelectorAll(read)).filter(vis);
+    }
+    var NS='http://www.w3.org/2000/svg';
+    var W=Math.max(document.documentElement.scrollWidth,innerWidth),H=Math.max(document.documentElement.scrollHeight,innerHeight);
+    var svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('width',W);svg.setAttribute('height',H);
+    svg.setAttribute('aria-hidden','true');
+    svg.style.cssText='position:absolute;left:0;top:0;overflow:visible;pointer-events:none;z-index:2147483646';
+    svg.innerHTML='<defs><marker id="ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#056a4a"/></marker></defs>';
+    var pts=els.map(function(e){var r=e.getBoundingClientRect();return{x:r.left+scrollX,y:r.top+scrollY};});
+    for(var i=0;i<pts.length-1;i++){var ln=document.createElementNS(NS,'line');ln.setAttribute('x1',pts[i].x);ln.setAttribute('y1',pts[i].y);ln.setAttribute('x2',pts[i+1].x);ln.setAttribute('y2',pts[i+1].y);ln.setAttribute('stroke','#056a4a');ln.setAttribute('stroke-width','2');ln.setAttribute('opacity','0.55');ln.setAttribute('marker-end','url(#ah)');svg.appendChild(ln);}
+    document.body.appendChild(svg);
+    els.forEach(function(e,i){var r=e.getBoundingClientRect();var b=document.createElement('div');b.textContent=i+1;b.style.cssText='position:absolute;z-index:2147483647;background:#056a4a;color:#fff;font:700 11px/1 monospace;min-width:18px;height:18px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;transform:translate(-45%,-45%)';b.style.left=(r.left+scrollX)+'px';b.style.top=(r.top+scrollY)+'px';document.body.appendChild(b);});
+  })();`;
+
   const HOWTO = `
     <p>Colle le HTML d'une page pour visualiser, superposés, soit l'ordre du DOM (l'ordre de lecture par défaut), soit l'ordre de tabulation au clavier. Le HTML collé n'est jamais exécuté (iframe sans scripts).</p>
     <h3>Deux ordres à comparer</h3>
@@ -69,6 +95,7 @@
         <div class="ord-bar">
           <button class="btn" id="ord-run" type="button">Visualiser</button>
           <button class="btn ghost" id="ord-sample" type="button">Charger un exemple</button>
+          <button class="btn ghost" id="ord-tab" type="button">Ouvrir dans un onglet</button>
           <div class="seg" role="group" aria-label="Ordre à afficher" style="margin-left:auto">
             <button type="button" data-mode="tab" aria-pressed="true">Tabulation</button>
             <button type="button" data-mode="dom" aria-pressed="false">Lecture (DOM)</button>
@@ -97,6 +124,7 @@
 
       q('#ord-sample').addEventListener('click',()=>{q('#ord-input').value=SAMPLE;visualise();});
       q('#ord-run').addEventListener('click',visualise);
+      q('#ord-tab').addEventListener('click',openInTab);
       q('.ord-bar .seg').addEventListener('click',e=>{
         const b=e.target.closest('button');if(!b)return;
         mode=b.dataset.mode;
@@ -112,6 +140,21 @@
         if(!html.trim()){q('#ord-status').textContent='Colle du HTML puis clique sur « Visualiser ».';return;}
         q('#ord-stage').hidden=false;
         frame.srcdoc = html;
+      }
+      function openInTab(){
+        const html=q('#ord-input').value;
+        if(!html.trim()){q('#ord-status').textContent='Colle du HTML avant d’ouvrir l’aperçu.';return;}
+        const stripped=html.replace(/<script[\s\S]*?<\/script>/gi,'');
+        const doc='<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+          +'<title>Ordre & focus — aperçu Neodyr</title></head><body>'
+          +stripped
+          +'<scr'+'ipt>'+OVERLAY_SCRIPT.replace('__MODE__',mode)+'</scr'+'ipt>'
+          +'</body></html>';
+        const url=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
+        const w=window.open(url,'_blank');
+        setTimeout(()=>URL.revokeObjectURL(url),30000);
+        q('#ord-status').textContent = w ? 'Aperçu ouvert dans un nouvel onglet ('+(mode==='tab'?'tabulation':'lecture DOM')+').'
+          : 'Le navigateur a bloqué l’onglet : autorise les popups pour ce site.';
       }
       function resize(){
         if(!frame.isConnected) return;
