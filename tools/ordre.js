@@ -16,6 +16,9 @@
   .ord-stage{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;margin-top:8px}
   .ord-frame{display:block;width:100%;border:0;background:#fff}
   .ord-overlay{position:absolute;inset:0;pointer-events:none}
+  .ord-arrows{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+  .ord-arrows line{stroke:var(--signal-ink);stroke-width:2;opacity:.55}
+  .ord-arrows marker path{fill:var(--signal-ink)}
   .ord-badge{position:absolute;background:var(--signal-ink);color:#fff;font:700 11px/1 var(--mono,monospace);
     min-width:18px;height:18px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;
     box-shadow:0 0 0 2px #fff;transform:translate(-45%,-45%)}
@@ -138,6 +141,15 @@
           els=readables(d);
           q('#ord-legend').textContent='Ordre de lecture (DOM) : '+els.length+' bloc(s). C\'est l\'ordre restitué par les lecteurs d\'écran.';
         }
+        // points d'ancrage (coin haut-gauche de chaque élément, là où est le numéro)
+        const pts=els.map(e=>{const r=e.getBoundingClientRect();return {x:r.left,y:r.top};});
+        // flèches reliant chaque élément au suivant, dans l'ordre
+        let lines='';
+        for(let i=0;i<pts.length-1;i++){
+          lines+=`<line x1="${pts[i].x.toFixed(1)}" y1="${pts[i].y.toFixed(1)}" x2="${pts[i+1].x.toFixed(1)}" y2="${pts[i+1].y.toFixed(1)}" marker-end="url(#ord-ah)"/>`;
+        }
+        ov.innerHTML=`<svg class="ord-arrows" aria-hidden="true"><defs><marker id="ord-ah" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z"/></marker></defs>${lines}</svg>`;
+        // numéros par-dessus les flèches
         els.forEach((e,i)=>{
           const r=e.getBoundingClientRect();
           const b=document.createElement('div');
