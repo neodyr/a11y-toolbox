@@ -67,6 +67,16 @@
     els.forEach(function(e,i){var r=e.getBoundingClientRect();var b=document.createElement('div');b.textContent=i+1;b.style.cssText='position:absolute;z-index:2147483647;background:#056a4a;color:#fff;font:700 11px/1 monospace;min-width:18px;height:18px;padding:0 4px;border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;transform:translate(-45%,-45%)';b.style.left=(r.left+scrollX)+'px';b.style.top=(r.top+scrollY)+'px';document.body.appendChild(b);});
   })();`;
 
+  // Injecte une balise <base> pour que les URL relatives (CSS, images) se résolvent
+  // contre l'adresse réelle de la page, au lieu de l'origine de la toolbox.
+  function withBase(html,url){
+    if(!url) return html;
+    const base='<base href="'+url.replace(/"/g,'&quot;')+'">';
+    if(/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, m=>m+base);
+    if(/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, m=>m+'<head>'+base+'</head>');
+    return '<head>'+base+'</head>'+html;
+  }
+
   const HOWTO = `
     <p>Colle le HTML d'une page pour visualiser, superposés, soit l'ordre du DOM (l'ordre de lecture par défaut), soit l'ordre de tabulation au clavier. Le HTML collé n'est jamais exécuté (iframe sans scripts).</p>
     <h3>Deux ordres à comparer</h3>
@@ -93,6 +103,9 @@
       <div class="card card-pad" aria-label="Ordre de lecture et focus">
         <label class="lb" for="ord-input">Coller le HTML à visualiser</label>
         <textarea class="ord-ta" id="ord-input" spellcheck="false"></textarea>
+        <label class="lb" for="ord-url" style="margin:12px 0 6px">URL de la page (facultatif) — pour charger ses styles et images</label>
+        <input type="url" id="ord-url" class="field" placeholder="https://www.exemple.com/page" spellcheck="false">
+        <p class="hint">Sans URL, seule la structure s'affiche : les styles à chemin relatif ne se chargent pas, et le contenu généré par JavaScript n'apparaît pas. Pour une vraie page complète et fidèle, préfère le bookmarklet plus bas, directement sur le site.</p>
         <div class="ord-bar">
           <button class="btn" id="ord-run" type="button">Visualiser</button>
           <button class="btn ghost" id="ord-sample" type="button">Charger un exemple</button>
@@ -142,13 +155,15 @@
         const html=q('#ord-input').value;
         if(!html.trim()){q('#ord-status').textContent='Colle du HTML puis clique sur « Visualiser ».';return;}
         q('#ord-stage').hidden=false;
-        frame.srcdoc = html;
+        frame.srcdoc = withBase(html, q('#ord-url').value.trim());
       }
       function openInTab(){
         const html=q('#ord-input').value;
         if(!html.trim()){q('#ord-status').textContent='Colle du HTML avant d’ouvrir l’aperçu.';return;}
         const stripped=html.replace(/<script[\s\S]*?<\/script>/gi,'');
-        const doc='<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+        const pageUrl=q('#ord-url').value.trim();
+        const base=pageUrl?'<base href="'+pageUrl.replace(/"/g,'&quot;')+'">':'';
+        const doc='<!doctype html><html lang="fr"><head><meta charset="utf-8">'+base
           +'<title>Ordre & focus — aperçu Neodyr</title></head><body>'
           +stripped
           +'<scr'+'ipt>'+OVERLAY_SCRIPT.replace('__MODE__',mode)+'</scr'+'ipt>'
